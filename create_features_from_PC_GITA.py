@@ -1,7 +1,9 @@
 """
-Script to run to extract features from all wav files in a folder structure.
+Script to run to extract features from all wav files in a folder structure. 
+Run file with: python create_features_from_PC_GITA.py "Name_of_folder_for_features_to_be_saved_to".
+
 Copies the structure from an existing folder to a new one and extract Articulation, Prosody and Phonation features. 
-Might need to change variables about what folder to extract features from, where to put the new folder and the new folder name before you run the script. 
+Might need to change variables about what folder to extract features from and where to put the new folder before you run the script. Can be changed here, or in the constants file. 
 If you want to change between static and dynamic features or change settings for how the features are saved you need to change that as well.
 """
 
@@ -13,8 +15,8 @@ from constants import path_PC_GITA_16k, personal_path_to_code, personal_path_to_
 
 os.environ['KALDI_ROOT'] = personal_path_to_kaldi
 warnings.filterwarnings("ignore",
-                        category=RuntimeWarning)  # To remove warnings for prosody about potentially not getting reliable results.
-sys.path.append("../")
+                        category=RuntimeWarning)  # To remove warning about potentially not getting reliable results. Done to get a cleaner write out. 
+sys.path.append("../")                                  # Warning that creates NaN values (mostly for prosody). 
 
 from disvoice.articulation.articulation import Articulation
 from disvoice.phonation.phonation import Phonation
@@ -31,8 +33,8 @@ static = True  # False if you want dynamic features. Only matters to set if feat
 
 
 # For dynamic features: / To be fixed before dynamic features are used
-#   I get a warning for prosody --> avoid prosody for warning for now, but should be fixed.
-#   I also get nothing out for Articulation --> should also be fixed. 
+#   Get a warning for prosody 
+#   Get nothing out for Articulation for dynamic features. 
 
 ###################################################
 

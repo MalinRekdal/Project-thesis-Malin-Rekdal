@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 from sklearn.metrics import confusion_matrix, classification_report, ConfusionMatrixDisplay
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
@@ -30,7 +31,6 @@ def get_health_state(value, dict=class_labels):
     """
     key = list(filter(lambda x: dict[x] == value, dict))[0]
     return key
-
 
 
 def extend_paths(path_list, base_path):
@@ -136,6 +136,108 @@ def add_metadata_columns(data, metadata, metadata_columns):
 
 
 
+########## FEATURE PLOTTING ##################
+
+
+def plot_features(f, names, colors, metadata_columns, gaussian = True):
+    """
+    Plots given features and finds average between all people. 
+    Compares features from two different types. For example female vs male or HC vs PD. 
+    Both plots feature values vs person number, and a gaussian distribution of these features. 
+    
+    Note that the amount of features showing on the x axis is only one of the 2 data types (HC vs PD or female vs male),
+    so in total we are looking at twice the amount of people. 
+    
+    Note: len(f) = 2, and every time we iterate through those we look at the 2 data types separately. 
+
+    Args:
+        f (df): DataFrame of features to be plotted. Contains data for both data types. 
+        names (list): Names of the data types we will be plotting. For example female and male or HC and PD. 
+        colors (list): Colors that will be used for the plotting for the 2 data types. 
+        metadata_columns (list): list of the types of metadata we have
+        gaussian (bool, optional): True or False depending on if you want the gaussian plot as well or not. Defaults to True.
+    """
+    # Remove metadata columns before plotting all features
+    for i in range(len(f)):
+        f[i] = f[i].drop(columns=metadata_columns)
+    
+    feature_types = f[0].keys().to_list()
+    f = [np.array(f[0]), np.array(f[1])]
+    num_row = [len(f[0]), len(f[1])]
+
+    for i in range(len(feature_types)):
+        
+        avg = [np.average(f[0][:,i]), np.average(f[1][:,i])]
+        std = [np.std(f[0][:,i]), np.std(f[1][:,i])]
+        
+        print(" ")
+        print(f"The average value and std for {feature_types[i]} is: ")
+        for j in range(len(f)):
+            print(f"   Over the {num_row[j]} {names[j]} the average was {round(avg[j], 2)} and the standard deviation was {round(std[j], 2)}")
+
+        x = [list(range(1, num_row[0] + 1)), list(range(1, num_row[1] + 1))]
+
+        # Plot of features 
+        for j in range(len(f)):
+            plt.scatter(x[j], f[j][:, i], color=colors[j], label=names[j])
+            plt.axhline(y=avg[j], color=colors[j], linestyle='--', label='Avg for ' + names[j])
+            plt.axhline(y=avg[j] + std[j], color=colors[j], linestyle=':', label='Std for '+ names[j])
+            plt.axhline(y=avg[j] - std[j], color=colors[j], linestyle=':')
+            # plt.text(-200, avg[j], np.round(avg[j]), color=colors[j], verticalalignment='bottom') # To write the average value in the plot. 
+
+        plt.plot()
+        plt.title(feature_types[i] + ' for different '+ names[0] + ' and ' + names[1], fontsize=18)
+        plt.xlabel('Sample nr', fontsize=16)
+        plt.ylabel(feature_types[i], fontsize=16)
+        plt.xticks(fontsize=14)
+        plt.yticks(fontsize=14)
+        plt.legend(loc='upper right', fontsize=14)
+        plt.show()
+        
+        # Note that it is not necessary Gaussian distributed, but assumed it is we can plot the distributions: 
+        if gaussian: # Optional to not plot this by defining gaussian = False
+            x_range_0 = np.linspace(avg[0] - 3 * std[0], avg[0] + 3 * std[0], 100)
+            x_range_1 = np.linspace(avg[1] - 3 * std[1], avg[1] + 3 * std[1], 100)
+            plt.plot(x_range_0, norm.pdf(x_range_0, avg[0], std[0]), color=colors[0], linestyle='--', label="Distribution for " + names[0])
+            plt.plot(x_range_1, norm.pdf(x_range_1, avg[1], std[1]), color=colors[1], label="Distribution for " + names[1])
+            plt.title('Gaussian distributions for feature: ' + feature_types[i], fontsize=18)
+            plt.xlabel(feature_types[i] + " values", fontsize=16)
+            plt.ylabel('Probability density', fontsize=16)
+            plt.xticks(fontsize=14)
+            plt.yticks(fontsize=14)
+            plt.legend(loc='upper right', fontsize=14)
+            plt.show()
+
+
+def plot_features_together(f, f_types):
+    """
+    Plots the 2 features defined in f_types together with the values given from 
+    the features list f. Usefull to see how the features work together. 
+    
+    Note: If both features have 0 as value for the same people then it wont show that there is a lot of 0's,
+    but if only one of them has a lot of 0's it will be a clear line of scatters along the 0 line of that feature. 
+
+    Args:
+        f (df): DataFrame of all features
+        f_types (2 element long list): features to be plotted together
+    """
+    x = f_types[0]
+    y = f_types[1]
+    
+    plt.scatter(np.array(f["HC"][x]), np.array(f["HC"][y]), color="darkgreen", label="HC")
+    plt.scatter(np.array(f["PD"][x]), np.array(f["PD"][y]), color="firebrick", label="PD")
+
+    plt.plot()
+    plt.title(f"{x} and {y} for different HC and PD people", fontsize=18)
+    plt.xlabel(x, fontsize=16)
+    plt.ylabel(y, fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.legend(loc='upper right', fontsize=14)
+    plt.show()     
+
+
+
 ########## EVALUATION FUNCTIONS ##################
 
 def plot_histogram(data, xlabel, title, color='skyblue', bins=False):
@@ -162,34 +264,6 @@ def plot_histogram(data, xlabel, title, color='skyblue', bins=False):
     plt.show()
 
 
-def plot_loss_and_accuracy(history):
-    """
-    Plots training and validation loss and training and validation accuracy in 2 seperate plots using history. 
-
-    Args:
-        history (<class 'keras.src.callbacks.History'>): history from fitting the model. 
-    """
-    # Loss
-    metrics = history.history
-    plt.figure(figsize=(16, 6))
-    plt.subplot(1, 2, 1)
-    plt.title("Plot of loss for training and validation set.")
-    plt.plot(history.epoch, metrics['loss'], metrics['val_loss'])
-    plt.legend(['Training loss', 'Validation loss'])
-    plt.ylim([0, max(plt.ylim())])
-    plt.xlabel('Epoch')
-    plt.ylabel('Loss [CrossEntropy]')
-
-    # Accuracy 
-    plt.subplot(1, 2, 2)
-    plt.title("Plot of accuracy for training and validation set.")
-    plt.plot(history.epoch, 100 * np.array(metrics['accuracy']), 100 * np.array(metrics['val_accuracy']))
-    plt.legend(['Training accuracy', 'Validation accuracy'])
-    plt.ylim([0, 100])
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy [%]')
-
-
 def calculate_confusion_matrix(y_true, y_pred):
     """
     Calculates and prints confusion matrix for both number of instances and percentage, and
@@ -200,16 +274,7 @@ def calculate_confusion_matrix(y_true, y_pred):
         test_labels (list): list of true labels
     """
     # Generate the confusion matrix with labels
-    confusion_mat_percentage = confusion_matrix(y_true, y_pred, labels=list(class_labels.values()), normalize="true")
     confusion_mat = confusion_matrix(y_true, y_pred, labels=list(class_labels.values()))
-
-    # Print the confusion matrix
-    # print("Confusion Matrix:")
-    # print(confusion_mat)
-    # print(" ")
-    # print("Confusion Matrix in percentage:")
-    # print(confusion_mat_percentage * 100)
-    # print(" ")
 
     # Display the confusion matrix: 
     disp = ConfusionMatrixDisplay(confusion_matrix=confusion_mat, display_labels=list(class_labels.keys()))
@@ -342,135 +407,6 @@ def evaluate_metadata(test_labels, y_pred, test_metadata, metadata_columns):
     # Possibility to add stats on other metadata for PD patients classified as HC
 
 
-def calculate_der(y_true, y_scores, threshold):
-    """
-    For a given threshold we compute the der value
-
-    Args:
-        y_true (list): List of true labels
-        y_scores (list): Predicted probabilities from model for PD case
-        threshold (float): one specific threshold to test for
-
-    Returns:
-        float: DER value for the specific threshold
-    """
-    y_pred = (y_scores >= threshold).astype(int)
-    conf_mat = confusion_matrix(y_true, y_pred)
-    fp = conf_mat[0, 1]  # False Positive
-    fn = conf_mat[1, 0]  # False Negative
-    der = (fp + fn) / (fp + fn + conf_mat[1, 1])  # Detection Error Rate
-    return der
-
-
-def plot_der_curve(y_true, y_scores):
-    """
-    Plots DER curve for positive scores (PD) by comparing predicted probabilities to a threshold to know  
-    if it is correct or wrongly classified. 
-
-    Args:
-        y_true (list): List of true labels
-        y_scores (list): Predicted probabilities from model for PD case
-    """
-    thresholds = np.linspace(0, 1, 100) # Test with thresholds from 0 to 1. Expect best for 0.5. 
-    der_values = [calculate_der(y_true, y_scores, threshold) for threshold in thresholds]
-
-    plt.figure(figsize=(6, 4))
-    plt.plot(thresholds, der_values, label='DER Curve')
-    plt.title('Detection Error Rate Curve')
-    plt.xlabel('Threshold')
-    plt.ylabel('DER')
-    plt.legend()
-    plt.show()
-
-
-def plot_der_with_far_and_frr(prediction_scores):
-    """
-    Plots DET curve with FAR vs FRR using positive and negative scores from model.
-
-    Args:
-        prediction_scores (list): Predicted probabilities from model for HC and PD
-    """
-
-    scores_positive = prediction_scores[:,1] # PD prediction probabilities
-    scores_negative = prediction_scores[:,0] # HC prediction probabilities
-    thresholds = np.linspace(0, 1, 100) 
-
-    far_values = []
-    frr_values = []
-    for threshold in thresholds: # Using variating threshold. 
-        far = np.sum(scores_negative >= threshold) / len(scores_negative) # FAR = Say someone is sick that is really healthy = False Positive
-        frr = np.sum(scores_positive < threshold) / len(scores_positive) # FRR = say someone is healthy when they really is sick = false negative
-        
-        far_values.append(far)
-        frr_values.append(frr)
-
-    plt.plot(far_values, frr_values)
-    plt.xlabel('False Acceptance Rate (FAR)')
-    plt.ylabel('False Rejection Rate (FRR)')
-    plt.title('Detection Error Rate (DER) Curve')
-    plt.show()
-    
-
-def predict_from_model_one_example(data_sample, sample_nr, metadata_sample, true, model):
-    """
-    Predicts a class label using the model and compares to true value and prints out the result. 
-
-    Args:
-        data_sample (list): list of feature values for a one sample.
-        sample_nr (int): Sample number we want to investigate
-        metadata_sample (list): list of metadata values for a one sample.
-        true (int): true value. Either 0 or 1
-        model (model): The trained model we want to predict from.
-    """
-    # Predict the class label
-    pred = np.argmax(model.predict(data_sample), axis=1)[0]
-
-    # Compare predicted and true labels
-    print(f"For sample {sample_nr} with metadata: {metadata_sample} the model ")
-    if pred == true:
-        print(f"correctly predicted the gesture: {get_health_state(pred)}")
-    else:
-        print(f"predicted {get_health_state(pred)} but the true gesture was {get_health_state(true)}")
-        
-
-def testing_model_one_example_M1(sample_nr, data, true, metadata_columns, model):
-    """
-    Tests the model with one example. M1 = method 1, and that is using the original feature data. 
-
-    Args:
-        sample_nr (int): Sample number we want to investigate
-        data (list): list of features for either HC or PD, containing the metadata as well. 
-        true (int): true value. Either 0 or 1
-        metadata_columns (list): list of the types of metadata we have
-        model (model): The trained model we want to predict from.
-    """
-
-    metadata_sample = np.array(data[metadata_columns].loc[sample_nr])
-    test_sample = np.array(data.drop(columns = metadata_columns).loc[sample_nr])
-    test_sample = test_sample.reshape(-1, len(test_sample), 1)
-
-    predict_from_model_one_example(data_sample=test_sample, sample_nr=sample_nr, metadata_sample=metadata_sample, true=true, model=model)
-    
-    
-def testing_model_one_example_M2(sample_nr, data, labels, metadata, model):
-    """
-    Tests the model with one example. M2 = method 2, and that is using the data after it is splitted (test, train or validation). 
-
-    Args:
-        sample_nr (int): Sample number we want to investigate
-        data (list): list of features for either HC or PD, without the metadata. 
-        labels (list): list of labels corresponding to the data
-        metadata (list): list of metadata corresponding to the labels
-        model (model): The trained model we want to predict from.
-    """
-    sample = data[sample_nr]
-    sample = sample.reshape(-1, len(sample), 1)
-
-    true = labels[sample_nr]
-    metadata_sample = metadata[sample_nr]
-    predict_from_model_one_example(data_sample=sample, sample_nr=sample_nr, metadata_sample=metadata_sample, true=true, model=model)
-
-
 def shuffle_data(x, y):
     """Functions that takes in data and labels and shuffles them in the same way. 
     Used to make sure the new data have a random set up of HC and PD after each other. 
@@ -489,9 +425,9 @@ def shuffle_data(x, y):
 
 
 
-def x_fold_cross_val(x, y, model, num_folds = 5, random_state=42, model_type="CNN", write_out=True):
+def x_fold_cross_val(x, y, model, num_folds = 5, random_state=42, write_out=True):
     """
-    Does a 5 fold cross validation using data and the labels and already defined model. 
+    Does a x fold cross validation using data and the labels and already defined model. 
     The type of splitting used makes it so that all of the values are test values at some point, 
     so for 5 folds we have a 80-20 split. 
     
@@ -503,7 +439,6 @@ def x_fold_cross_val(x, y, model, num_folds = 5, random_state=42, model_type="CN
         model (model): The trained model we want to predict from.
         num_folds (int, optional): Number of folds wanted. Defaults to 5.
         random_state (int, optional): Random state. Defaults to 42.
-        model_type (str, optional): Either "SVM" or "CNN". Defaults to "CNN".
         write_out (bool, optional): Variable to decide if you want fold values and conf matrix printed or not. Defaults to True.
     """
 
@@ -535,17 +470,10 @@ def x_fold_cross_val(x, y, model, num_folds = 5, random_state=42, model_type="CN
         x_train = scaler.fit_transform(x_train)
         x_test = scaler.transform(x_test)
 
-        if model_type == "CNN":
-            model.fit(x_train, y_train, epochs=20, batch_size=10, verbose=0) # validation_data=(x_test, y_test) # Train the model
-            y_pred = np.argmax(model.predict(x_test), axis=1) # Make predictions on the test set
-            _, test_accuracy = model.evaluate(x_test, y_test, verbose=2) # Evaluate the model on the test set
-            
-        elif model_type == "SVM": 
-            model.fit(x_train, y_train)  # Train the model
-            y_pred = model.predict(x_test) # Evaluate the model on the test set
-            test_accuracy = accuracy_score(y_test, y_pred)
-        else: 
-            print("Use another model type, only works for CNN and SVM.")
+        model.fit(x_train, y_train)  # Train the model
+        y_pred = model.predict(x_test) # Evaluate the model on the test set
+        test_accuracy = accuracy_score(y_test, y_pred)
+        
             
         # Append accuracy scores
         accuracy_scores.append(test_accuracy)
@@ -564,11 +492,6 @@ def x_fold_cross_val(x, y, model, num_folds = 5, random_state=42, model_type="CN
             
             print("Confusion Matrix:")
             print(confusion_mat)
-            
-            # print("True labels: ", y_test)
-            # print("Pred labels: ", y_pred)
-
-            # print_classification_report(y_true=y_test, y_pred=y_pred)
     
     # Display average accuracy across all folds
     print(f"Results over all {fold_num} folds:")
@@ -590,59 +513,8 @@ def x_fold_cross_val(x, y, model, num_folds = 5, random_state=42, model_type="CN
     print(f"Specificity over all {fold_num} folds: {rounded_specificity_scores}")
     print(f"Average Specificity: {np.mean(specificity_scores) * 100:.1f}%")
     print(f"The Specificity is variating between {np.min(rounded_specificity_scores)}% and {np.max(rounded_specificity_scores)}%")
-
-    # Display the confusion matrix: 
-    # Print the confusion matrix sum:
-    # print("Sum of all confusion Matrix:")
-    # print(confusion_mat_sum)
     
     disp = ConfusionMatrixDisplay(confusion_matrix=confusion_mat_sum, display_labels=list(class_labels.keys()))
     disp.plot()
     plt.title(f"Confusion matrix sum over all {fold_num} folds:")
     plt.show()
-
-
-def plot_linear_decision_boundary(svm_model, data, true, predicted, feature_names, colors):
-    """
-    Plots the linear decision boundary together with the feature values. Shows both with 
-    the distribution with the true labels, and with the predicted ones. 
-    This will only make sense if the model is trained on only 2 features and the 
-    decision boundary is linear. In any other case the decision boundary will not make sense in the plot. 
-
-    Note: parts of this function is gotten from: https://www.freecodecamp.org/news/svm-machine-learning-tutorial-what-is-the-support-vector-machine-algorithm-explained-with-code-examples/
-    Args:
-        svm_model (svm model): svm model 
-        data (array): features sent to the model 
-        true (array): True labels from the model 
-        predicted (array): Predicted labels from the model 
-        feature_names (list): List of 2 feature names we want to use as x and y label. 
-        colors (list): List of 2 colors we want to use for the 2 classes. 
-    """
-    
-    w = svm_model.coef_[0] # get the weight values for the linear equation from the trained SVM model
-    a = -w[0] / w[1] # get the y-offset for the linear equation
-    XX = np.linspace(-2.5, 2) # make the x-axis space for the data points
-    yy = a * XX - svm_model.intercept_[0] / w[1] # get the y-values to plot the decision boundary
-    
-
-    # Show the plot visually together with the data
-    plt.title("Decition boundery together with true labels")
-    plt.plot(XX, yy, 'k-', label="Decision Boundary") # plot the decision boundary 
-    plt.scatter(data[true == 0][:, 0], data[true == 0][:, 1], c=colors[0], label='HC')
-    plt.scatter(data[true == 1][:, 0], data[true == 1][:, 1], c=colors[1], label='PD')
-    plt.ylim(-7, 5)
-    plt.legend()
-    plt.xlabel(feature_names[0])
-    plt.ylabel(feature_names[1])
-    plt.show()
-    
-    plt.title("Decition boundery together with predicted labels")
-    plt.plot(XX, yy, 'k-', label="Decision Boundary") # plot the decision boundary
-    plt.scatter(data[predicted == 0][:, 0], data[predicted == 0][:, 1], c=colors[0], label='predicted HC')
-    plt.scatter(data[predicted == 1][:, 0], data[predicted == 1][:, 1], c=colors[1], label='predicted PD')
-    plt.ylim(-7, 5)
-    plt.legend()
-    plt.xlabel(feature_names[0])
-    plt.ylabel(feature_names[1])
-    plt.show()
-    
